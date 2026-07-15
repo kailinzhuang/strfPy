@@ -1061,7 +1061,18 @@ store_error = False):
         if x.ndim == 1:
             x = x[:, np.newaxis]
         nFeatures = x.shape[1]
-  
+    
+    # if snrEst is none or not a number, we will estimate the SNR from the data.
+    # we need this to estimate the 'single trial' R2 from all trials for comparison with single trial
+    if snrEst is None or not isinstance(snrEst, (int, float)):
+        snrEst, f, snrEstf, cumInfo, totWeight = preprocSound.estimate_SNR(
+            srData, smWindow=smWindow
+            )
+    print(
+        'The single trial SNR with smoothing at %.0f ms is %.4f' % (
+            smWindow, snrEst)
+        )
+    
     # 1. Calculate the averages to zero out data
     all_x = []
     all_y = []
@@ -1167,6 +1178,7 @@ store_error = False):
             u[iS,:,:],s[iS,:],v[iS,:,:] = np.linalg.svd(Cxx[iS,:,:])
 
     R2CV = np.zeros(ranktol.shape[0])
+    R2ST = np.zeros(ranktol.shape[0])
 
     for it, tolval in enumerate(ranktol):
 
@@ -1174,6 +1186,10 @@ store_error = False):
         simple_sum_y =  0
         simple_sum_error = 0
         simple_sum_count = 0
+        
+        # per stimulus
+        error_st_sum = 0
+        var_st_sum = 0
 
         for iS, iSet in enumerate(pair_train_set):
             
@@ -1240,7 +1256,24 @@ store_error = False):
             simple_sum_y +=  sum_y
             simple_sum_error += sum_error2
             simple_sum_count += sum_count
-        
+
+            # R2_st calculation. 
+            # not using yw here, only using time index (len of trial) ?
+            ntp = len(yr2)      # number of time points in stim/resp
+            ntrials = len(pair['resp']['trialDurations'])
+
+            yr2_mean = np.mean(yr2)     # time mean of this stimulus's averaged response
+
+            yvar_nt = np.sum((yr2 - yr2_mean) ** 2) / ntp    # response variance
+            error_nt = np.sum((ypred - yr2) ** 2) / ntp
+            nvar_nt = yvar_nt / (snrEst + 1/ntrials)     # noise variance from SNR
+            
+            yvar_st = yvar_nt + nvar_nt * (1 - 1/ntrials)
+            error_st = error_nt + nvar_nt * (1 - 1/ntrials)
+            r2_st = 1.0 - error_st / yvar_st
+            # print(r2_st)
+            var_st_sum += yvar_st * ntrials         # weighted by number of trials per stimulus
+            error_st_sum += error_st * ntrials
 
         y_mean = simple_sum_y/simple_sum_count
         y_var = simple_sum_yy/simple_sum_count - y_mean**2
@@ -1248,12 +1281,17 @@ store_error = False):
 
         # This is not a "one-trial" CV
         R2CV[it] = 1.0 - y_error/y_var
+
+        # single trial CV
+        R2ST[it] = 1.0 - error_st_sum / var_st_sum
      
     # Find the best tolerance level, i.e. the ridge penalty hyper-parameter
     segModel = {}
     itMax = np.argmax(R2CV)
     segModel['Tol'] = tol
     segModel['R2CV'] = R2CV
+    segModel['R2ST'] = R2ST
+
     if ( (itMax == 0) | (itMax == len(tol)-1 )):
         print('fit_seg() warning: Max prediction found for %f. Extend range of tolerance values' % tol[itMax])
 
