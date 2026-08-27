@@ -810,7 +810,7 @@ def preprocess_srData(srData, plot=False, respChunkLen=150, segmentBuffer=25, td
                 srData["datasets"][iSet]["resp"]["psth"], wHann, mode="same"
             )
 
-        if plotFlg:
+        if plotFlg and (iSet == 3):
             plt.figure(figsize=(8, 2), dpi=100)
             # plt.plot(ampdev)
 
@@ -837,12 +837,17 @@ def preprocess_srData(srData, plot=False, respChunkLen=150, segmentBuffer=25, td
             for soundEnd in troughInd:
                 plt.plot([soundEnd, soundEnd], [0, -np.max(ampdev) * 1.1], "b")
             xlim = plt.xlim()
+            xlim = (0, 1000)
+            plt.xlim(xlim)
             plt.subplot(2, 1, 2)
             plt.plot(ampdev)
             plt.axhline(derivativeThresh, color="k")
             plt.axhline(-derivativeThresh, color="k")
-            plt.ylim((derivativeThresh*-3.0, derivativeThresh*3.0))
+            plt.ylim((derivativeThresh*-5.0, derivativeThresh*5.0))
             plt.xlim(xlim)
+            plt.savefig("/Users/frederictheunissen/Desktop/spect_derivative_example.eps", dpi=300, bbox_inches="tight")
+            plt.show()
+            plt.close()
 
             plt.figure(figsize=(16, 2), dpi=100)
             nEvents = events["index"].shape[0]
@@ -862,6 +867,9 @@ def preprocess_srData(srData, plot=False, respChunkLen=150, segmentBuffer=25, td
                 
                 plt.imshow(events['spect_windows'][iEvent,:,:], aspect="auto", cmap=cmap, origin="lower")
                 plt.axis('off')
+            plt.savefig("/Users/frederictheunissen/Desktop/segmentation_features_example.eps", dpi=300, bbox_inches="tight")
+            plt.show()
+            plt.close()
 
 
     # lets generate zero-mean mps
